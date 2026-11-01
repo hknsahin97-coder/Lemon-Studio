@@ -1374,7 +1374,8 @@ fn audio_thread(rx: Receiver<Cmd>, shared: Arc<Shared>, latest: Arc<Mutex<Option
     let swap = |s: &mut Session, library: &mut SampleLibrary| {
         // Build outside the lock, then swap at the playing position.
         let mut e = engine(&s.project, library, s.rate, s.mode, &inst, true);
-        if s.kind == Kind::Live {
+        // An edit during a clip's preview ends the clip: the new project's schedule is the whole song.
+        if matches!(s.kind, Kind::Live | Kind::Clip) {
             e.clear_schedule();
         }
         let old = s.engine.lock().map(|mut slot| {
@@ -1514,6 +1515,18 @@ fn audio_thread(rx: Receiver<Cmd>, shared: Arc<Shared>, latest: Arc<Mutex<Option
             Ok(Cmd::PreviewSong(project)) => {
                 preview = None;
                 preview_until = None;
+                // A clip plays its channels with their instruments: on the live stream's place, the one stream that may
+                // process them while no playback runs. During playback they are taken, so it goes without them.
+                let hosted = inst.lock().is_ok_and(|l| !l.inst.is_empty());
+                if hosted && !session.as_ref().is_some_and(|s| !s.paused()) {
+                    live = None;
+                    release_paused(&session);
+                    match Session::start(&project, PlayMode::Song, Kind::Clip, 0, &mut library, shared.clone(), &inst, At::default(), &mut device) {
+                        Ok(s) => live = Some(s),
+                        Err(e) => report(&shared, e),
+                    }
+                    continue;
+                }
                 match Session::start(&project, PlayMode::Song, Kind::Preview, 0, &mut library, shared.clone(), &inst, At::default(), &mut device) {
                     Ok(s) => preview = Some(s),
                     Err(e) => report(&shared, e),
@@ -1752,6 +1765,10 @@ fn audio_thread(rx: Receiver<Cmd>, shared: Arc<Shared>, latest: Arc<Mutex<Option
         if preview.as_ref().is_some_and(|p| p.done.load(Ordering::Relaxed)) {
             preview = None;
         }
+        // A clip's preview ended: the next live note opens a live stream of its own.
+        if live.as_ref().is_some_and(|l| l.kind == Kind::Clip && l.done.load(Ordering::Relaxed)) {
+            live = None;
+        }
         if preview_until.is_some_and(|t| Instant::now() >= t) {
             preview_until = None;
             if let Some(s) = preview.take() {
@@ -1975,6 +1992,9 @@ enum Kind {
     Preview,
     /// Live notes only (no schedule); never finishes.
     Live,
+    /// A clip's preview with the hosted instruments, in the live stream's place: live notes join it, it ends with the
+    /// clip and leaves the song position and play state alone.
+    Clip,
 }
 
 /// Controls shared with a stream's callback.
