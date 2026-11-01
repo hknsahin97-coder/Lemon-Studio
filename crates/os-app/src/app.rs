@@ -6767,6 +6767,21 @@ impl App {
             return;
         }
         if let Some(a @ (Action::PianoNote(_) | Action::PianoGrid)) = action {
+            // FL manual, Piano roll: Ctrl + right-drag zooms to a box, Alt + right plays what is under the mouse.
+            if self.ctrl {
+                self.drag = Some(Drag::ZoomBox { x0: x, y0: y });
+                return;
+            }
+            if self.alt {
+                if let Some(g) = self.piano_geom() {
+                    let t = g.tick_at(x).max(0.0);
+                    self.drag = Some(Drag::Scrub { tick: t });
+                    self.scrub(t, t);
+                    self.state.piano.overlay = Some(Overlay::Scrub(t));
+                    self.damage_piano();
+                }
+                return;
+            }
             // Select: same as the left button; Zoom: toggle zoomed out / last zoom; the other
             // tools delete while the right button is held (spec: ui/piano-roll.md §9).
             match self.state.piano.tool {
@@ -14972,6 +14987,32 @@ mod tests {
         arrow(&mut app, NamedKey::ArrowUp);
         assert_eq!(app.state.browser_sel, before);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Ctrl or Alt with the right button over a note does not erase it, in any tool that would.
+    #[test]
+    fn modified_right_drags_keep_the_notes() {
+        let Ok(mut c) = Canvas::new(1920, 1080, 1.0) else { return };
+        for ctrl in [true, false] {
+            let mut app = App::new(None);
+            app.state.z = vec![Win::PianoRoll];
+            app.state.selected_channel = 0;
+            frame(&mut app, &mut c, None);
+            let g = app.piano_geom().unwrap();
+            let (x, y) = (g.x_of(10.0), g.y_of(64) + 8.0);
+            app.mouse_move(x, y);
+            app.mouse_down();
+            app.mouse_up();
+            frame(&mut app, &mut c, None);
+            let notes = piano::notes(&app.state).to_vec();
+            assert_eq!(notes.len(), 1);
+            (app.ctrl, app.alt) = (ctrl, !ctrl);
+            app.mouse_move(x, y);
+            app.mouse_down_right();
+            app.mouse_move(x + 30.0, y + 20.0);
+            app.mouse_up();
+            assert_eq!(piano::notes(&app.state), notes, "ctrl {ctrl}");
+        }
     }
 
     /// Clicks entry `label` of the open popup.
