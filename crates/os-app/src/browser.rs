@@ -1,4 +1,5 @@
 // Copyright (C) 2026 ItsAlphaNeon
+// Copyright (C) 2026 hknsahin97-coder
 // SPDX-License-Identifier: GPL-3.0-or-later
 // This file is part of Lemon Studio: https://github.com/ItsAlphaNeon/Lemon-Studio
 
@@ -304,6 +305,15 @@ impl App {
             }
             return true;
         }
+        if let Key::Named(k @ (NamedKey::ArrowUp | NamedKey::ArrowDown | NamedKey::ArrowLeft | NamedKey::ArrowRight)) = key
+            && over
+            && !ctrl
+            && !alt
+            && !shift
+        {
+            self.browser_arrow(*k);
+            return true;
+        }
         let s = &mut self.state;
         if focus {
             match key {
@@ -339,6 +349,45 @@ impl App {
             }
         }
         false
+    }
+
+    /// A plain arrow key over the browser. Up / Down: the row before / after the selection, wrapping as find does.
+    /// Right: opens a closed folder, goes into an open one, plays a sample again. Left: closes an open folder, else goes
+    /// to the row's parent. Only the selection moves: a pattern, channel or history row is not acted on, as it is by a
+    /// click.
+    fn browser_arrow(&mut self, k: winit::keyboard::NamedKey) {
+        use winit::keyboard::NamedKey;
+        let s = &mut self.state;
+        let rows = view::rows(s);
+        let cur = rows.iter().position(|r| Some(&r.key) == s.browser_sel.as_ref());
+        let to = match (k, cur) {
+            (NamedKey::ArrowUp, _) => step(s, &rows, -1, |_| true),
+            (NamedKey::ArrowDown, _) | (_, None) => step(s, &rows, 1, |_| true),
+            (NamedKey::ArrowRight, Some(i)) => match rows[i].open {
+                Some(false) => {
+                    s.browser_open.insert(rows[i].key.clone());
+                    None
+                }
+                Some(true) => rows.get(i + 1).is_some_and(|r| r.depth > rows[i].depth).then_some(i + 1),
+                None => {
+                    if let Item::Sample(path) = &rows[i].item {
+                        self.preview_sample(path);
+                    }
+                    None
+                }
+            },
+            (_, Some(i)) if rows[i].open == Some(true) => {
+                s.browser_open.remove(&rows[i].key);
+                None
+            }
+            (_, Some(i)) => (0..i).rev().find(|&j| rows[j].depth < rows[i].depth),
+        };
+        let s = &mut self.state;
+        if let Some(i) = to {
+            select(s, &rows[i].key);
+        }
+        reveal(s);
+        self.invalidate();
     }
 
     /// A press on the browser's splitter: drags it; a double click gives the browser its default width (spec §9).

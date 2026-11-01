@@ -14885,6 +14885,52 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The plain arrow keys over the browser walk its tree: Up / Down through the rows shown, Right opens a folder and
+    /// then goes in, Left closes it and then goes to the parent. Only over the browser and only without modifiers.
+    #[test]
+    fn browser_arrow_keys_walk_the_tree() {
+        use crate::views::browser::rows;
+        use winit::keyboard::{Key, NamedKey};
+        let Ok(mut c) = Canvas::new(1920, 1080, 1.0) else { return };
+        let dir = std::env::temp_dir().join(format!("os_browser_arrows_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Kicks")).unwrap();
+        std::fs::write(dir.join("Kicks").join("Kick 01.wav"), b"x").unwrap();
+        std::fs::write(dir.join("readme.txt"), b"hello").unwrap();
+        let mut app = App::new(None);
+        frame(&mut app, &mut c, None);
+        app.drop_file(dir.clone());
+        frame(&mut app, &mut c, None);
+        let r = rows(&app.state);
+        let root = r.iter().position(|r| r.path.as_deref() == Some(dir.as_path())).expect("root row");
+        let (root_key, kicks_key, readme_key) = (r[root].key.clone(), r[root + 1].key.clone(), r[root + 2].key.clone());
+        let at = hit_rect(&app, &Action::BrowserRow(root));
+        app.mouse_move(at.cx(), at.cy());
+        crate::browser::select(&mut app.state, &root_key);
+        let press = |app: &mut App, k: NamedKey, ctrl: bool| {
+            app.key(&Key::Named(k), ctrl, false);
+            app.state.browser_sel.clone().unwrap()
+        };
+        assert_eq!(press(&mut app, NamedKey::ArrowDown, false), kicks_key, "Down: the next row");
+        // Right on a closed folder opens it and stays on it, then goes in.
+        assert_eq!(press(&mut app, NamedKey::ArrowRight, false), kicks_key);
+        assert_eq!(rows(&app.state)[root + 1].open, Some(true));
+        let sample = press(&mut app, NamedKey::ArrowRight, false);
+        assert_eq!(rows(&app.state)[root + 2].key, sample, "Right on an open folder: its first row");
+        assert_eq!(press(&mut app, NamedKey::ArrowDown, false), readme_key);
+        assert_eq!(press(&mut app, NamedKey::ArrowUp, false), sample, "Up: the row before");
+        // Left on a row goes to its parent; on an open folder it closes it and stays.
+        assert_eq!(press(&mut app, NamedKey::ArrowLeft, false), kicks_key);
+        assert_eq!(press(&mut app, NamedKey::ArrowLeft, false), kicks_key);
+        assert_eq!(rows(&app.state)[root + 1].open, Some(false));
+        assert_eq!(press(&mut app, NamedKey::ArrowLeft, false), root_key);
+        // Ctrl + Down is not the browser's, and away from the browser the arrows leave it alone.
+        assert_eq!(press(&mut app, NamedKey::ArrowDown, true), root_key);
+        app.mouse_move(1000.0, 500.0);
+        assert_eq!(press(&mut app, NamedKey::ArrowDown, false), root_key);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Clicks entry `label` of the open popup.
     fn pick(app: &mut App, c: &mut Canvas, label: &str) {
         frame(app, c, None);
