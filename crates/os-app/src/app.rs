@@ -5746,7 +5746,10 @@ impl App {
                 Drag::Scrub { tick } => {
                     if let Some(g) = self.piano_geom() {
                         let t = g.tick_at(x).max(0.0);
-                        self.scrub(tick, t);
+                        // A move up or down leaves the line where it is: to `scrub`, the same tick twice is a press.
+                        if t != tick {
+                            self.scrub(tick, t);
+                        }
                         self.drag = Some(Drag::Scrub { tick: t });
                         self.state.piano.overlay = Some(Overlay::Scrub(t));
                     }
