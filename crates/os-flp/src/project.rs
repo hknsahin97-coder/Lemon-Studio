@@ -64,6 +64,8 @@ mod id {
     pub const PLUGIN_STATE: u8 = 213;
     pub const PLUGIN_ICON: u8 = 155;
     pub const DISPLAY_NAME: u8 = 203;
+    /// A channel's name in projects of older versions (FL 11 writes this one, without `DISPLAY_NAME`).
+    pub const OLD_NAME: u8 = 192;
     pub const COLOR: u8 = 128;
     pub const SAMPLE_PATH: u8 = 196;
     /// Channel rack state (spec: flp/events/channels.md): zipped row, lock, filter group.
@@ -706,6 +708,7 @@ fn scan_channel(events: &[Event], start: usize, end: usize) -> ChannelLoc {
     for k in start + 1..end {
         match events[k].id {
             id::DISPLAY_NAME => c.name = Some(k),
+            id::OLD_NAME if c.name.is_none() => c.name = Some(k),
             id::PLUGIN_REC => c.plugin_rec = Some(k),
             id::CH_TYPE if c.kind.is_none() => c.kind = Some(k),
             id::PLUGIN_NAME => c.plugin_name = Some(k),
@@ -4523,6 +4526,21 @@ mod tests {
     /// A sample taken out (the Sampler window's file box X) takes its path (event 196) and loop points (event 251) out
     /// of the channel's block and turns Resample off; the other flags stay (spec: flp/events/channels.md "Loop points
     /// (event 251)", "Sampler flags (event 143)").
+    /// FL 11 keeps a channel's name in event 192; a later `DISPLAY_NAME` has the say.
+    #[test]
+    fn a_channel_name_of_an_older_version_is_read() {
+        let block = |extra: Vec<Event>| {
+            let mut events = vec![int_event(id::CH_START, 0)];
+            events.extend(extra);
+            scan_channel(&events, 0, events.len()).name
+        };
+        let old = Event::new(id::OLD_NAME, Value::var(vec![]));
+        let new = Event::new(id::DISPLAY_NAME, Value::var(vec![]));
+        assert_eq!(block(vec![old.clone()]), Some(1));
+        assert_eq!(block(vec![old.clone(), new.clone()]), Some(2));
+        assert_eq!(block(vec![new, old]), Some(1));
+    }
+
     #[test]
     fn cleared_sample_leaves_the_block() {
         let mut p = settled(new_project());
