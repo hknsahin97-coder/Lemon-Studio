@@ -14974,6 +14974,24 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Shift+4 over the playlist is the top row's key on any layout: on a Turkish one it types +, the key for the next
+    /// pattern.
+    #[test]
+    fn shift_4_zooms_out_on_any_layout() {
+        use winit::keyboard::{Key, KeyCode, PhysicalKey};
+        let Ok(mut c) = Canvas::new(1600, 1000, 1.0) else { return };
+        let mut app = App::new(None);
+        app.state.z = vec![Win::Playlist];
+        crate::playlist::arr_mut(&mut app.state).clips = vec![os_model::Clip::new(384, 384, 0, os_model::ClipSource::Pattern(1))];
+        frame(&mut app, &mut c, None);
+        app.state.playlist_scroll.0 = 180.0;
+        let pattern = app.state.pattern;
+        app.shift = true;
+        app.playlist_key_on(None, &Key::Character("+".into()), PhysicalKey::Code(KeyCode::Digit4), false, false);
+        assert_eq!(app.state.pattern, pattern, "not the next pattern");
+        assert_ne!(app.state.playlist_scroll.0, 180.0, "the view went to the clips");
+    }
+
     /// Clicks entry `label` of the open popup.
     fn pick(app: &mut App, c: &mut Canvas, label: &str) {
         frame(app, c, None);

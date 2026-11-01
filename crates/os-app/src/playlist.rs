@@ -4178,6 +4178,27 @@ pub fn commit_edit(s: &mut State) {
 // Commands
 
 /// Run a menu / shortcut command. Returns a status message, if any.
+impl App {
+    /// Delivers a key, with Shift+4 and Shift+5 over the playlist by the physical top-row key: what they type depends on
+    /// the layout (Shift+4 is + on a Turkish one, which would pick the next pattern).
+    pub fn playlist_key_on(&mut self, on: Option<crate::app::Win>, key: &winit::keyboard::Key, physical: winit::keyboard::PhysicalKey, ctrl: bool, alt: bool) {
+        use winit::keyboard::{Key, KeyCode, PhysicalKey};
+        let digit = self.on(on, |a| {
+            let s = &a.state;
+            if !a.shift || ctrl || alt || !a.pl_focus() || s.playlist.edit.is_some() || s.playlist.popup.is_some() || s.menu_open.is_some() || s.settings.open || !s.dialogs.is_empty() || s.pat_ui.name_box.is_some() || s.pat_ui.confirm || s.browser_search_focus || s.plugdb.finding || s.perf.finding || s.link_box.is_some() {
+                return None;
+            }
+            match physical {
+                PhysicalKey::Code(KeyCode::Digit4) => Some("4"),
+                PhysicalKey::Code(KeyCode::Digit5) => Some("5"),
+                _ => None,
+            }
+        });
+        let digit = digit.map(|n| Key::Character(n.into()));
+        self.key_on(on, digit.as_ref().unwrap_or(key), ctrl, alt);
+    }
+}
+
 pub fn run(app: &mut App, cmd: Cmd) -> Option<String> {
     let grid = app.pl_grid();
     let was = app.state.playlist.popup.take();

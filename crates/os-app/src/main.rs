@@ -1114,7 +1114,7 @@ impl ApplicationHandler for Shell {
                     // The key acts in the window that has the keyboard (the one it came to), and a popup or box it
                     // opens shows there.
                     let (key, c, alt) = (&event.logical_key, ctrl(self.mods), self.mods.alt_key());
-                    self.app.key_on(self.key_on, key, c, alt);
+                    self.app.playlist_key_on(self.key_on, key, event.physical_key, c, alt);
                     self.app.repeat = false;
                     window.request_redraw();
                 }
