@@ -9,7 +9,6 @@
 // spec: plugins/sytrus.md ("Rates and control blocks", "Curves", "Maps", "An articulator's value", "Operators",
 // "Filter modules", "Output", "Unison", "Portamento", "The end of a voice")
 
-use std::f64::consts::PI;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
@@ -921,8 +920,10 @@ impl Voice {
             let upan = if self.leader { 0.5 } else { self.uni.pan };
             let pan = ((self.levels.pan * 0.5 + upan + cell_pan + pan_v) * 2.0 - 1.0).clamp(-1.0, 1.0);
             let split = |pan: f32, level: f32| -> [f32; 2] {
-                let ang = (1.0 + f64::from(pan)) * PI / 4.0;
-                [s(ang.cos() * f64::from(level)), s(ang.sin() * f64::from(level))]
+                // Centred it sounds at its full level in both channels, panned the far side falls: measured against
+                // FL's Sytrus (2026-11-01).
+                let (pan, level) = (f64::from(pan), f64::from(level));
+                [s((1.0 - pan).min(1.0) * level), s((1.0 + pan).min(1.0) * level)]
             };
             let mut target = [0f32; 4];
             if !self.finished {

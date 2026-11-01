@@ -398,6 +398,25 @@ mod tests {
         l.iter().fold(0.0f32, |m, v| m.max(v.abs()))
     }
 
+    /// Centred, a note is as loud in each channel as it is on its own side panned hard; the far side is silent there.
+    #[test]
+    fn a_centred_note_is_at_full_level_in_both_channels() {
+        let peaks = |pan: f32| {
+            let mut c = Citrus::new(48000);
+            c.set_state(default_patch());
+            let levels = Levels { vol: 1.0, pan, pitch: 0.0, mod_x: 0.0, mod_y: 0.0 };
+            c.note_on(NoteOn { levels, velocity: 100.0 / 128.0, release: 0.5 });
+            let (mut l, mut r) = (vec![0.0f32; 4800], vec![0.0f32; 4800]);
+            c.render(&mut l, &mut r);
+            let peak = |x: &[f32]| x.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+            (peak(&l), peak(&r))
+        };
+        let (cl, cr) = peaks(0.0);
+        assert!(cl > 0.0 && (cl - cr).abs() < 1e-3 * cl, "{cl} {cr}");
+        let (hl, hr) = peaks(-1.0);
+        assert!((hl - cl).abs() < 0.05 * cl && hr < 1e-4 * cl, "{hl} {hr} {cl}");
+    }
+
     /// An edit is heard on the playing note; one that uses another module stops it.
     #[test]
     fn edits_keep_notes_unless_the_modules_change() {
