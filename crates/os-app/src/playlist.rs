@@ -4772,7 +4772,13 @@ pub fn run(app: &mut App, cmd: Cmd) -> Option<String> {
             });
             match src {
                 Some(ClipSource::Pattern(n)) => start_edit(s, EditTarget::PatternName(n), at),
-                _ => return Some("Rename: only pattern clips can be renamed here".into()),
+                // An audio or automation clip takes its channel's name.
+                Some(ClipSource::Channel(ch)) => {
+                    if let Some(row) = s.project.channels.iter().position(|c| c.index == ch) {
+                        crate::rack::open_box(s, crate::rack::RBox::Channel(row), at);
+                    }
+                }
+                None => {}
             }
             None
         }

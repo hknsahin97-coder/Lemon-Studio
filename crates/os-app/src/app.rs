@@ -14974,6 +14974,22 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Rename on an audio or automation clip's menu edits its channel's name.
+    #[test]
+    fn a_channel_clip_renames_its_channel() {
+        use crate::playlist as pl;
+        use os_model::{Clip, ClipSource};
+        use winit::keyboard::{Key, NamedKey};
+        let mut app = App::new(None);
+        let ch = app.state.project.channels[0].index;
+        pl::arr_mut(&mut app.state).clips = vec![Clip::new(0, 384, 0, ClipSource::Channel(ch))];
+        assert_eq!(pl::run(&mut app, pl::Cmd::ClipRename(0)), None);
+        assert!(app.state.pat_ui.name_box.is_some());
+        app.key(&Key::Character("Renamed".into()), false, false);
+        app.key(&Key::Named(NamedKey::Enter), false, false);
+        assert_eq!(app.state.project.channels[0].name.as_deref(), Some("Renamed"));
+    }
+
     /// Clicks entry `label` of the open popup.
     fn pick(app: &mut App, c: &mut Canvas, label: &str) {
         frame(app, c, None);
