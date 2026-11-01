@@ -65,10 +65,22 @@ pub(crate) fn value_event(time: u32, id: u32, value: f64) -> clap_event_param_va
     }
 }
 
+const CITRUS: &str = "Citrus";
+
+/// A project's automation names Sytrus's parameters by FL's numbers: 18 and 19 are its mod X and Y knobs, which Citrus
+/// lists third and fourth, 0..1 in the upper half of their range (below it they leave the patch's own values).
+fn citrus_param(index: u32, value: f64) -> (u32, f64) {
+    match index {
+        18 | 19 => (index - 16, (value.clamp(0.0, 1.0) + 1.0) / 2.0),
+        _ => (index, value),
+    }
+}
+
 impl Plugin {
     /// Automation (audio thread): parameter `index` of the list to normalized `value`, `offset` frames into the next
     /// process call. A stepped parameter gets its nearest step. Unknown indexes are ignored.
     pub(crate) fn automate(&mut self, offset: u32, index: u32, value: f64) {
+        let (index, value) = if self.desc.name == CITRUS { citrus_param(index, value) } else { (index, value) };
         let Some(&(id, lo, hi, stepped)) = self.ranges.get(index as usize) else { return };
         if id == u32::MAX || self.auto.len() >= MAX_AUTO {
             return;
@@ -126,5 +138,19 @@ impl Plugin {
         if !self.auto.is_empty() || !self.param_queue.is_empty() {
             self.host_data.attention.raise();
         }
+    }
+}
+
+#[cfg(test)]
+mod citrus_tests {
+    use super::citrus_param;
+
+    /// FL's numbers for Sytrus's mod X and Y become Citrus's knobs, 0..1 in the upper half; the others pass.
+    #[test]
+    fn fl_numbers_of_the_mod_knobs() {
+        assert_eq!(citrus_param(18, 0.0), (2, 0.5));
+        assert_eq!(citrus_param(19, 1.0), (3, 1.0));
+        assert_eq!(citrus_param(18, 0.5), (2, 0.75));
+        assert_eq!(citrus_param(0, 0.3), (0, 0.3));
     }
 }

@@ -100,6 +100,11 @@ pub struct CitrusParams {
     pub mod_x: FloatParam,
     #[id = "mody"]
     pub mod_y: FloatParam,
+    /// The patch's mod X / Y knobs as automation sets them, 0..1; below 0 the state's own values stand.
+    #[id = "knobx"]
+    pub knob_x: FloatParam,
+    #[id = "knoby"]
+    pub knob_y: FloatParam,
 }
 
 impl Default for CitrusParams {
@@ -112,6 +117,8 @@ impl Default for CitrusParams {
             playing: [AtomicU64::new(0), AtomicU64::new(0)],
             mod_x: FloatParam::new("Mod A", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
             mod_y: FloatParam::new("Mod B", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
+            knob_x: FloatParam::new("Mod X", -1.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
+            knob_y: FloatParam::new("Mod Y", -1.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
         }
     }
 }
@@ -315,6 +322,7 @@ impl Plugin for CitrusPlugin {
     fn process(&mut self, buffer: &mut Buffer, _aux: &mut AuxiliaryBuffers, ctx: &mut impl ProcessContext<Self>) -> ProcessStatus {
         self.pick_up_state();
         self.pick_up_edits();
+        self.engine.set_knobs([self.params.knob_x.value(), self.params.knob_y.value()]);
         if let Some(bpm) = ctx.transport().tempo {
             self.engine.set_tempo(bpm);
         }

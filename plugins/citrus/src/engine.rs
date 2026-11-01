@@ -58,6 +58,8 @@ pub struct Citrus {
     ranks_dirty: bool,
     dry: Bus,
     fx: Bus,
+    /// The mod X / Y knobs as automation sets them (0..512), in place of the state's.
+    knobs: [Option<i32>; 2],
 }
 
 impl Citrus {
@@ -82,6 +84,7 @@ impl Citrus {
             ranks_dirty: false,
             dry: [Vec::new(), Vec::new()],
             fx: [Vec::new(), Vec::new()],
+            knobs: [None; 2],
         }
     }
 
@@ -103,6 +106,11 @@ impl Citrus {
         let Some(st) = State::from_bytes(bytes) else { return false };
         self.set_state(st);
         true
+    }
+
+    /// The mod X / Y knobs from automation: 0..1 sets one, below 0 leaves the state's own value.
+    pub fn set_knobs(&mut self, v: [f32; 2]) {
+        self.knobs = v.map(|v| (v >= 0.0).then(|| (f64::from(v) * 512.0).round() as i32));
     }
 
     pub fn set_state(&mut self, st: State) {
@@ -192,7 +200,7 @@ impl Citrus {
             kf: s(k44),
             svf: &self.svf,
             counter: self.counter,
-            knobs: [p.st.s[25], p.st.s[26]],
+            knobs: [self.knobs[0].unwrap_or(p.st.s[25]), self.knobs[1].unwrap_or(p.st.s[26])],
         })
     }
 
@@ -396,6 +404,20 @@ mod tests {
         let (mut l, mut r) = (vec![0.0f32; 480], vec![0.0f32; 480]);
         c.render(&mut l, &mut r);
         l.iter().fold(0.0f32, |m, v| m.max(v.abs()))
+    }
+
+    /// Automation sets the mod X / Y knobs, 0..1 to 0..512; below 0 the state's values are back.
+    #[test]
+    fn automated_knobs_take_the_place_of_the_states() {
+        let mut c = Citrus::new(48000);
+        c.set_state(default_patch());
+        let knobs = |c: &Citrus| c.knobs.map(|k| k.unwrap_or(-1));
+        c.set_knobs([0.25, -1.0]);
+        assert_eq!(knobs(&c), [128, -1]);
+        c.set_knobs([1.0, 0.0]);
+        assert_eq!(knobs(&c), [512, 0]);
+        c.set_knobs([-1.0, -1.0]);
+        assert_eq!(knobs(&c), [-1, -1]);
     }
 
     /// An edit is heard on the playing note; one that uses another module stops it.
