@@ -78,6 +78,9 @@ const PREFILL_FRAMES: usize = 1024;
 /// State the UI reads every frame.
 #[derive(Default)]
 pub struct Shared {
+    /// Tests: how many `preview_for` calls were made.
+    #[cfg(test)]
+    previews_for: AtomicUsize,
     state: AtomicU8,
     /// Counts play and stop requests (see the module docs).
     generation: AtomicU64,
@@ -687,6 +690,8 @@ impl Transport {
     /// Play pattern 1 of `project` once on the preview stream and cut it off after `limit` (spec: ui/browser.md §7,
     /// sample preview). A new preview replaces the one sounding.
     pub fn preview_for(&self, project: Project, limit: Option<Duration>) {
+        #[cfg(test)]
+        self.shared.previews_for.fetch_add(1, Ordering::Relaxed);
         let _ = self.tx.send(Cmd::PreviewFor(Box::new(project), limit));
     }
 
@@ -911,6 +916,12 @@ impl Transport {
     /// The output device the playback or live stream last opened.
     pub fn opened(&self) -> Option<DeviceInfo> {
         self.shared.opened.lock().ok()?.clone()
+    }
+
+    /// How many sample previews were asked for.
+    #[cfg(test)]
+    pub(crate) fn previews_for(&self) -> usize {
+        self.shared.previews_for.load(Ordering::Relaxed)
     }
 
     /// The open device fails as if it was unplugged (it opens again, see `audio_thread`).

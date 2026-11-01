@@ -14915,10 +14915,16 @@ mod tests {
         // Right on a closed folder opens it and stays on it, then goes in.
         assert_eq!(press(&mut app, NamedKey::ArrowRight, false), kicks_key);
         assert_eq!(rows(&app.state)[root + 1].open, Some(true));
+        let played = app.transport.previews_for();
         let sample = press(&mut app, NamedKey::ArrowRight, false);
         assert_eq!(rows(&app.state)[root + 2].key, sample, "Right on an open folder: its first row");
+        assert_eq!(app.transport.previews_for(), played + 1, "a sample the selection lands on plays");
         assert_eq!(press(&mut app, NamedKey::ArrowDown, false), readme_key);
+        assert_eq!(app.transport.previews_for(), played + 1, "a row that is not a sample does not");
         assert_eq!(press(&mut app, NamedKey::ArrowUp, false), sample, "Up: the row before");
+        assert_eq!(app.transport.previews_for(), played + 2);
+        assert_eq!(press(&mut app, NamedKey::ArrowRight, false), sample, "Right on a sample stays");
+        assert_eq!(app.transport.previews_for(), played + 3, "and plays it again");
         // Left on a row goes to its parent; on an open folder it closes it and stays.
         assert_eq!(press(&mut app, NamedKey::ArrowLeft, false), kicks_key);
         assert_eq!(press(&mut app, NamedKey::ArrowLeft, false), kicks_key);

@@ -353,8 +353,8 @@ impl App {
 
     /// A plain arrow key over the browser. Up / Down: the row before / after the selection, wrapping as find does.
     /// Right: opens a closed folder, goes into an open one, plays a sample again. Left: closes an open folder, else goes
-    /// to the row's parent. Only the selection moves: a pattern, channel or history row is not acted on, as it is by a
-    /// click.
+    /// to the row's parent. A sample the selection lands on plays, as FL's does. Otherwise only the selection moves: a
+    /// pattern, channel or history row is not acted on, as it is by a click.
     fn browser_arrow(&mut self, k: winit::keyboard::NamedKey) {
         use winit::keyboard::NamedKey;
         let s = &mut self.state;
@@ -385,8 +385,11 @@ impl App {
         let s = &mut self.state;
         if let Some(i) = to {
             select(s, &rows[i].key);
+            if let Item::Sample(path) = &rows[i].item {
+                self.preview_sample(path);
+            }
         }
-        reveal(s);
+        reveal(&mut self.state);
         self.invalidate();
     }
 
