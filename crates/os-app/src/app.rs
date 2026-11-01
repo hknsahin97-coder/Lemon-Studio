@@ -7812,6 +7812,11 @@ impl App {
             Key::Character(c) if ctrl && self.shift && c.eq_ignore_ascii_case("s") => self.act(Action::MenuItem(0, views::menus::FILE_SAVE_AS)),
             // VIEW ▸ Arrange windows ▸ Realign (spec: ui/menu-submenus.md §2).
             Key::Character(c) if ctrl && self.shift && !alt && c.eq_ignore_ascii_case("h") => self.arrange(crate::arrange::Layout::Realign),
+            // TOOLS > Stop sound.
+            Key::Character(c) if ctrl && !self.shift && !alt && c.eq_ignore_ascii_case("h") => {
+                self.transport.stop();
+                self.state.message = Some("Sound stopped".into());
+            }
             Key::Character(c) if ctrl && !self.shift && c.eq_ignore_ascii_case("r") => self.act(Action::MenuItem(0, views::menus::FILE_EXPORT)),
             Key::Character(c) if ctrl && self.shift && !alt && c.eq_ignore_ascii_case("r") => self.act(Action::MenuItem(0, views::menus::FILE_EXPORT_MP3)),
             Key::Character(c) if ctrl && !self.shift && c.eq_ignore_ascii_case("n") => self.act(Action::MenuItem(0, views::menus::FILE_SAVE_VERSION)),
@@ -14972,6 +14977,15 @@ mod tests {
         arrow(&mut app, NamedKey::ArrowUp);
         assert_eq!(app.state.browser_sel, before);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Ctrl+H does what TOOLS > Stop sound says it does.
+    #[test]
+    fn ctrl_h_stops_the_sound() {
+        use winit::keyboard::Key;
+        let mut app = App::new(None);
+        app.key(&Key::Character("h".into()), true, false);
+        assert_eq!(app.state.message.as_deref(), Some("Sound stopped"));
     }
 
     /// Clicks entry `label` of the open popup.
