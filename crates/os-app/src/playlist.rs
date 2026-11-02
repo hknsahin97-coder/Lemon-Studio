@@ -3342,6 +3342,14 @@ pub fn press_grid(app: &mut App, grid: Rect, right: bool) {
     }
 
     if right {
+        // FL manual, Playlist: Alt + right button previews the clip; it does not erase it.
+        if alt && !app.ctrl {
+            if let Some(i) = hit {
+                let c = clips(s)[i];
+                app.preview_clip(&c);
+            }
+            return;
+        }
         match tool {
             PlTool::Select => {}
             PlTool::Zoom => {

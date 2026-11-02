@@ -14974,6 +14974,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Alt with the right button over a clip previews it and leaves it in place, in every tool that would erase.
+    #[test]
+    fn alt_right_on_a_clip_keeps_it() {
+        use crate::playlist::{self as pl, PGeom, PlTool};
+        use os_model::{Clip, ClipSource};
+        for tool in [PlTool::Draw, PlTool::Paint, PlTool::Delete, PlTool::Mute, PlTool::Slice] {
+            let mut app = App::new(None);
+            app.state.project = test_project();
+            app.state.z = vec![Win::Playlist];
+            app.state.show_browser = false;
+            app.state.playlist.tool = tool;
+            pl::arr_mut(&mut app.state).clips = vec![Clip::new(384, 384, 0, ClipSource::Pattern(1))];
+            let Ok(mut c) = Canvas::new(1600, 1000, 1.0) else { return };
+            app.paint_region(&mut c, None);
+            let r = PGeom::new(&app.state, app.pl_grid.unwrap()).clip_rect(&pl::clips(&app.state)[0]);
+            let before = pl::clips(&app.state).to_vec();
+            app.alt = true;
+            app.mouse_move(r.cx(), r.cy());
+            app.mouse_down_right();
+            app.mouse_move(r.cx() + 40.0, r.cy() + 10.0);
+            app.mouse_up();
+            assert_eq!(pl::clips(&app.state), before, "{tool:?}");
+        }
+    }
+
     /// Clicks entry `label` of the open popup.
     fn pick(app: &mut App, c: &mut Canvas, label: &str) {
         frame(app, c, None);
